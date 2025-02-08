@@ -3,6 +3,7 @@
 
 #include "mesh.h"
 #include "solver.h"
+#include <opencv2/opencv.hpp>
 
 class Caustic_design
 {
@@ -14,19 +15,19 @@ public:
     ~Caustic_design();
 
     Mesh *mesh;
-    std::vector<std::vector<double>> phi;
+    cv::Mat phi;
     std::vector<double> errors;
     std::vector<std::vector<std::vector<double>>> target_cells;
     std::vector<std::vector<std::vector<double>>> source_cells;
     std::vector<double> target_areas;
-    std::vector<std::vector<double>> pixels;
-    std::vector<std::vector<double>> raster;
-    std::vector<std::vector<std::vector<double>>> gradient;
-    std::vector<std::vector<double>> h;
-    std::vector<std::vector<double>> divergence;
-    std::vector<std::vector<double>> norm_x;
-    std::vector<std::vector<double>> norm_y;
-    std::vector<std::vector<double>> vertex_gradient;
+    cv::Mat pixels;
+    cv::Mat raster;
+    std::vector<cv::Mat> gradient;
+    cv::Mat h;
+    cv::Mat divergence;
+    cv::Mat norm_x;
+    cv::Mat norm_y;
+    cv::Mat vertex_gradient;
     std::vector<std::vector<double>> normals;
 
     int mesh_res_x;
@@ -42,13 +43,13 @@ public:
     double thickness;
     int nthreads;
 
-    std::vector<double> calculate_vertex_normal(std::vector<std::vector<double>> &points, int vertex_index);
+    std::vector<double> calculate_vertex_normal(cv::Mat &points, int vertex_index);
 
     double perform_transport_iteration();
 
     void perform_height_map_iteration(int itr);
 
-    void initialize_solvers(std::vector<std::vector<double>> image);
+    void initialize_solvers(cv::Mat image);
 
     void set_mesh_resolution(int width, int heigth);
     void set_domain_resolution(int width, int heigth);

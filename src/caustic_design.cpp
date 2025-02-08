@@ -61,7 +61,7 @@ void Caustic_design::save_solid_obj_source(const std::string& filename) {
 }
 
 // Function to calculate the approximate vertex normal
-std::vector<double> Caustic_design::calculate_vertex_normal(std::vector<std::vector<double>> &points, int vertex_index) {
+std::vector<double> Caustic_design::calculate_vertex_normal(cv::Mat &points, int vertex_index) {
     std::vector<double> avg_normal = {0.0, 0.0, 0.0}; // Initialize normal to zero vector
     
     int left_vtx = 0;
@@ -69,20 +69,13 @@ std::vector<double> Caustic_design::calculate_vertex_normal(std::vector<std::vec
     int top_vtx = 0;
     int bot_vtx = 0;
 
-    //printf("aa\r\n");
-    
     mesh->get_vertex_neighbor_ids(vertex_index, left_vtx, right_vtx, top_vtx, bot_vtx);
-
-    //printf("ab\r\n");
 
     if (left_vtx != -1 && top_vtx != -1) {
         std::vector<double> normal;
         double angle_out;
 
-        calculate_angle_and_normal_from_triangle(points[vertex_index], points[left_vtx], points[top_vtx], normal, angle_out);
-
-        //printf("ac1\r\n"); fflush(stdout);
-        //printf("normal = {%f, %f, %f}, angle = %f\r\n", normal[0], normal[1], normal[2], angle_out); fflush(stdout);
+        calculate_angle_and_normal_from_triangle(points.row(vertex_index), points.row(left_vtx), points.row(top_vtx), normal, angle_out);
 
         avg_normal[0] += normal[0] * angle_out;
         avg_normal[1] += normal[1] * angle_out;
@@ -93,10 +86,7 @@ std::vector<double> Caustic_design::calculate_vertex_normal(std::vector<std::vec
         std::vector<double> normal;
         double angle_out;
 
-        calculate_angle_and_normal_from_triangle(points[vertex_index], points[bot_vtx], points[left_vtx], normal, angle_out);
-
-        //printf("ac2\r\n"); fflush(stdout);
-        //printf("normal = {%f, %f, %f}, angle = %f\r\n", normal[0], normal[1], normal[2], angle_out); fflush(stdout);
+        calculate_angle_and_normal_from_triangle(points.row(vertex_index), points.row(bot_vtx), points.row(left_vtx), normal, angle_out);
 
         avg_normal[0] += normal[0] * angle_out;
         avg_normal[1] += normal[1] * angle_out;
@@ -107,10 +97,7 @@ std::vector<double> Caustic_design::calculate_vertex_normal(std::vector<std::vec
         std::vector<double> normal;
         double angle_out;
 
-        calculate_angle_and_normal_from_triangle(points[vertex_index], points[right_vtx], points[bot_vtx], normal, angle_out);
-
-        //printf("ac3\r\n"); fflush(stdout);
-        //printf("normal = {%f, %f, %f}, angle = %f\r\n", normal[0], normal[1], normal[2], angle_out); fflush(stdout);
+        calculate_angle_and_normal_from_triangle(points.row(vertex_index), points.row(right_vtx), points.row(bot_vtx), normal, angle_out);
         
         avg_normal[0] += normal[0] * angle_out;
         avg_normal[1] += normal[1] * angle_out;
@@ -121,29 +108,20 @@ std::vector<double> Caustic_design::calculate_vertex_normal(std::vector<std::vec
         std::vector<double> normal;
         double angle_out;
 
-        calculate_angle_and_normal_from_triangle(points[vertex_index], points[top_vtx], points[right_vtx], normal, angle_out);
-
-        //printf("ac4\r\n"); fflush(stdout);
-        //printf("normal = {%f, %f, %f}, angle = %f\r\n", normal[0], normal[1], normal[2], angle_out); fflush(stdout);
+        calculate_angle_and_normal_from_triangle(points.row(vertex_index), points.row(top_vtx), points.row(right_vtx), normal, angle_out);
         
         avg_normal[0] += normal[0] * angle_out;
         avg_normal[1] += normal[1] * angle_out;
         avg_normal[2] += normal[2] * angle_out;
     }
 
-    //printf("ad\r\n"); fflush(stdout);
-
-    // Calculate magnitude
     double magnitude = sqrt(avg_normal[0] * avg_normal[0] + avg_normal[1] * avg_normal[1] + avg_normal[2] * avg_normal[2]);
 
-    // Avoid division by zero
     if (magnitude > 1e-12) {
         avg_normal[0] /= -magnitude;
         avg_normal[1] /= -magnitude;
         avg_normal[2] /= magnitude;
     }
-
-    //printf("ae\r\n"); fflush(stdout);
 
     return avg_normal;
 }
@@ -153,53 +131,43 @@ void clamp(int &value, int min, int max) {
 }
 
 // Bilinear interpolation function
-double bilinearInterpolation(const std::vector<std::vector<double>>& image, double x, double y) {
+double bilinearInterpolation(const cv::Mat& image, double x, double y) {
     int x0 = floor(x);
     int y0 = floor(y);
     int x1 = ceil(x);
     int y1 = ceil(y);
 
-    clamp(x0, 0, image[0].size() - 1);
-    clamp(x1, 0, image[0].size() - 1);
-    clamp(y0, 0, image.size() - 1);
-    clamp(y1, 0, image.size() - 1);
+    clamp(x0, 0, image.cols - 1);
+    clamp(x1, 0, image.cols - 1);
+    clamp(y0, 0, image.rows - 1);
+    clamp(y1, 0, image.rows - 1);
 
-    // Check if the point is outside the image bounds
-    if (x0 < 0 || y0 < 0 || x1 >= image[0].size() || y1 >= image.size()) {
+    if (x0 < 0 || y0 < 0 || x1 >= image.cols || y1 >= image.rows) {
         printf("interpolation out of range: x: %f, y: %f\r\n", x, y);
 
-        printf("x0: %i, y0: %i, x1: %i, y1: %i\r\n", x0, y0, x1, y1);
-        // Handle out-of-bounds condition
-        return 0.0;  // Default value
+        return 0.0;
     }
 
-    // Interpolate along x-axis
     double fx1 = x - x0;
     double fx0 = 1.0 - fx1;
 
-    // Interpolate along y-axis
     double fy1 = y - y0;
     double fy0 = 1.0 - fy1;
 
-    // Perform bilinear interpolation
-    double top = fx0 * image[y0][x0] + fx1 * image[y0][x1];
-    double bottom = fx0 * image[y1][x0] + fx1 * image[y1][x1];
+    double top = fx0 * image.at<double>(y0, x0) + fx1 * image.at<double>(y0, x1);
+    double bottom = fx0 * image.at<double>(y1, x0) + fx1 * image.at<double>(y1, x1);
     return fy0 * top + fy1 * bottom;
 }
 
 double Caustic_design::perform_transport_iteration() {
-    //std::vector<std::vector<double>> vertex_gradient;
     double min_step;
 
-    // build median dual mesh of the updated parameterization
     target_cells.clear();
     mesh->build_target_dual_cells(target_cells);
 
-    // calculate difference D (interpretation of equation 2)
     std::vector<double> source_areas = get_source_areas(target_cells);
     calculate_errors(source_areas, target_areas, target_cells, errors);
 
-    // rasterize the mesh into a uniform rectangular matrix
     bool triangle_miss = false;
     raster = mesh->interpolate_raster_target(errors, resolution_x, resolution_y, triangle_miss);
     
@@ -208,50 +176,37 @@ double Caustic_design::perform_transport_iteration() {
         return NAN;
     }
 
-    // solve the poisson equation 3 in the paper
     subtractAverage(raster);
     poisson_solver(raster, phi, resolution_x, resolution_y, 100000, 0.0000001, nthreads);
 
-    // calculate the gradient given by equation 4
     gradient = calculate_gradient(phi);
 
-    // calculate the gradient vectors corresponding to each vertex in the mesh
-
-    // bilinear interpolating the gradients (negligibly faster, but gives lower contrast results)
     double epsilon = 1e-8;
     
+    cv::Mat vertex_gradient_x(mesh->target_points.size(), 1, CV_64F);
+    cv::Mat vertex_gradient_y(mesh->target_points.size(), 1, CV_64F);
 
-    std::vector<double> vertex_gradient_x;
-    std::vector<double> vertex_gradient_y;
     for (int i=0; i<mesh->target_points.size(); i++) {
-        vertex_gradient_x.push_back(bilinearInterpolation(gradient[0], 
+        vertex_gradient_x.at<double>(i) = bilinearInterpolation(gradient[0], 
             (mesh->target_points[i][0] / mesh->width) * (resolution_x) - 0.5, 
             (mesh->target_points[i][1] / mesh->height) * (resolution_y) - 0.5
-        ));
+        );
 
-        vertex_gradient_y.push_back(bilinearInterpolation(gradient[1], 
+        vertex_gradient_y.at<double>(i) = bilinearInterpolation(gradient[1], 
             (mesh->target_points[i][0] / mesh->width) * (resolution_x) - 0.5, 
             (mesh->target_points[i][1] / mesh->height) * (resolution_y) - 0.5
-        ));
+        );
     }
 
     vertex_gradient.clear();
     vertex_gradient.push_back(vertex_gradient_x);
     vertex_gradient.push_back(vertex_gradient_y);
     
-    //*/
-
-    // integrate the gradient grid into the dual cells of the vertices (slower but better contrast)
-    //vertex_gradient = integrate_cell_gradients(gradient, target_cells, resolution_x, resolution_y, width, height);
-
     std::vector<std::vector<double>> old_points;
 
     std::copy(mesh->target_points.begin(), mesh->target_points.end(), back_inserter(old_points));
 
-    // step the mesh vertices in the direction of their gradient vector
-    mesh->step_grid(vertex_gradient[0], vertex_gradient[1], 0.05f);
-
-    //mesh->laplacian_smoothing(mesh->target_points, 0.5f);
+    mesh->step_grid(vertex_gradient_x, vertex_gradient_y, 0.05f);
 
     min_step = 0.0f;
 
@@ -267,33 +222,12 @@ double Caustic_design::perform_transport_iteration() {
         }
     }
 
-    //mesh->laplacian_smoothing(mesh->target_points, min_step / width);
-
     return min_step / width;
-
-    //return min_step*(resolution_x/width);
 }
 
-// normalize a vector such that its length equals 1
-/*void normalize(std::vector<double> &vec) {
-    double squared_len = 0;
-    for (int i=0; i<vec.size(); i++) {
-        squared_len += vec[i] * vec[i];
-    }
-
-    double len = std::sqrt(squared_len);
-
-    for (int i=0; i<vec.size(); i++) {
-        vec[i] /= len;
-    }
-}*/
-
-// uses uniform grid as caustic surface
 void Caustic_design::perform_height_map_iteration(int itr) {
-    // calculate the target normals
     normals = mesh->calculate_refractive_normals_uniform(resolution_x / width * focal_l, 1.49);
 
-    // interpolates the vertex normals into a large uniform grid
     mesh->build_source_bvh(5, 30);
     bool triangle_miss = false;
     norm_x = mesh->interpolate_raster_source(normals[0], resolution_x, resolution_y, triangle_miss);
@@ -303,35 +237,26 @@ void Caustic_design::perform_height_map_iteration(int itr) {
         return;
     }
 
-    // calculates the divergance of the interpolated normals
     divergence = calculate_divergence(norm_x, norm_y, resolution_x, resolution_y);
     subtractAverage(divergence);
 
-    // solve the poisson equation for the divergance
     poisson_solver(divergence, h, resolution_x, resolution_y, 100000, 0.00000001, nthreads);
-
-    /*std::vector<double> interpolated_h;
-    for (int i=0; i<mesh->target_points.size(); i++) {
-        interpolated_h.push_back(bilinearInterpolation(h, mesh->target_points[i][0] * ((resolution_x) / mesh->width), mesh->target_points[i][1] * ((resolution_y) / mesh->height)));
-    }
-    double max_update = mesh->set_target_heights(interpolated_h);
-    printf("height max update %.5e\r\n", max_update);*/
 
     double epsilon = 1e-8;
 
-    // get the heights on the vertex positions
-    std::vector<double> interpolated_h;
+    cv::Mat interpolated_h(mesh->source_points.size(), 1, CV_64F);
+
     for (int i=0; i<mesh->source_points.size(); i++) {
-        interpolated_h.push_back(bilinearInterpolation(h, 
+        interpolated_h.at<double>(i) = bilinearInterpolation(h, 
             (mesh->source_points[i][0] / mesh->width) * (resolution_x) - 0.5, 
             (mesh->source_points[i][1] / mesh->height) * (resolution_y) - 0.5
-        ));
+        );
     }
     double max_update = mesh->set_source_heights(interpolated_h);
     printf("height max update %.5e\r\n", max_update);
 }
 
-void Caustic_design::initialize_solvers(std::vector<std::vector<double>> image) {
+void Caustic_design::initialize_solvers(cv::Mat image) {
     pixels = scale_matrix_proportional(image, 0, 1.0f);
 
     printf("scaled\r\n");
@@ -342,26 +267,13 @@ void Caustic_design::initialize_solvers(std::vector<std::vector<double>> image) 
 
     mesh->export_to_svg("../mesh.svg", 1);
 
-    //std::cout << "built mesh" << std::endl;
-
-    //std::vector<std::vector<std::vector<double>>> circ_target_cells;
     mesh->build_target_dual_cells(target_cells);
     mesh->build_source_dual_cells(source_cells);
-    //mesh.build_circular_target_dual_cells(circ_target_cells);
 
-    //std::vector<double> target_areas = get_target_areas(pixels, circ_target_cells, resolution_x, resolution_y, width, height);
     target_areas = get_target_areas(pixels, target_cells, resolution_x, resolution_y, width, height);
 
     export_cells_as_svg(target_cells, scale_array_proportional(target_areas, 0.0f, 1.0f), "../cells.svg");
 
-    phi.clear();
-    h.clear();
-    for (int i = 0; i < resolution_y; ++i) {
-        std::vector<double> row;
-        for (int j = 0; j < resolution_x; ++j) {
-            row.push_back(0.0f);
-        }
-        phi.push_back(row);
-        h.push_back(row);
-    }
+    phi = cv::Mat::zeros(resolution_y, resolution_x, CV_64F);
+    h = cv::Mat::zeros(resolution_y, resolution_x, CV_64F);
 }

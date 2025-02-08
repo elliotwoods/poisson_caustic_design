@@ -24,15 +24,16 @@ set(SOURCE_FILES
 
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(OpenCV REQUIRED)
 
 # Create the executable
 add_executable(CausticEngineering ${SOURCE_FILES})
 
-# Include directories for PNG and ZLIB
-target_include_directories(CausticEngineering PUBLIC ${PNG_INCLUDE_DIRS})
+# Include directories for PNG, ZLIB, and OpenCV
+target_include_directories(CausticEngineering PUBLIC ${PNG_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
 
-# Link with libpng and zlib libraries
-target_link_libraries(CausticEngineering PUBLIC ${PNG_LIBRARIES} ${ZLIB_LIBRARIES})
+# Link with libpng, zlib, and OpenCV libraries
+target_link_libraries(CausticEngineering PUBLIC ${PNG_LIBRARIES} ${ZLIB_LIBRARIES} ${OpenCV_LIBS})
 
 # Install the executable
 install(TARGETS CausticEngineering DESTINATION .)
